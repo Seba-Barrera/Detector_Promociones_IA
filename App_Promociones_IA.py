@@ -125,7 +125,6 @@ def extraer_promociones_ia(
   si como tambien por ejemplo si dice de lunes a miercoles, escribir: "lunes,martes,miercoles")
   - Restriccion de la promocion (si tienen limites de tiempo 
   u otros alcances de monto maximo)
-'''
   '''
 
   # definir prompt del usuario  
