@@ -257,7 +257,12 @@ def extraccion_promos_ia_web(
   df_consolidado['Dias de vigencia']=df_consolidado['Dias de vigencia'].apply(
     lambda x: x.\
       replace('todos los días','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
-      replace('todos los dias','lunes,martes,miércoles,jueves,viernes,sábado,domingo')
+      replace('todos los dias','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
+      replace('á','a').\
+      replace('é','e').\
+      replace('í','i').\
+      replace('ó','o').\
+      replace('ú','u')
   )
   
   
