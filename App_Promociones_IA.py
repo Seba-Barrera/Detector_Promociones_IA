@@ -119,7 +119,8 @@ def extraer_promociones_ia(
         'role': 'user',
         'content': prompt_resumen_promo
       }
-    ]
+    ],
+    max_tokens=16384,
   )
 
   resumen_promos2 = resumen_promos.choices[0].message.content
@@ -170,7 +171,8 @@ def extraer_promociones_ia(
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
       ],
-    response_format=Promociones
+    response_format=Promociones,
+    max_tokens=16384
     )
 
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
