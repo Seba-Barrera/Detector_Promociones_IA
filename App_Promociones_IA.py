@@ -48,33 +48,41 @@ import requests
 
 
 @st.cache_resource() # https://docs.streamlit.io/library/advanced-features/caching
-def extraer_texto_url(url):
+def extraer_texto_url_filtrado(
+  url, 
+  palabras_clave=None
+  ):
 
   try:
     # Obtener el contenido del sitio web
     respuesta = requests.get(url)
     respuesta.raise_for_status()
     soup = BeautifulSoup(respuesta.text, 'html.parser')
-    
+
     # Eliminar elementos irrelevantes como scripts, estilos y botones
     for tag in soup(['script', 'style', 'button', 'nav', 'footer', 'form', 'aside']):
       tag.decompose()
-    
+
     # Extraer encabezados y párrafos en orden
     texto_relevante = []
     for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']):
-      # Obtener texto limpio y agregar salto de línea si es un encabezado
+      # Obtener texto limpio
       contenido = tag.get_text(strip=True)
-      if contenido:
-        if tag.name.startswith('h'):
+
+      # Si palabras_clave es None, no filtrar
+      if palabras_clave is None or (
+        contenido and any(palabra.lower() in contenido.lower() for palabra in palabras_clave)
+        ):
+        if tag.name.startswith('h'):  # Agregar salto de línea si es un encabezado
           texto_relevante.append(f"\n{contenido}\n")
         else:
           texto_relevante.append(contenido)
-    
+
     # Combinar todo el texto en un solo string
     return '\n'.join(texto_relevante).strip()
-  
+
   except requests.exceptions.RequestException as e:
+    print(f'Error al procesar la URL: {e}')
     return ''
   
 
@@ -84,7 +92,7 @@ def extraer_texto_url(url):
 
 
 @st.cache_resource() # https://docs.streamlit.io/library/advanced-features/caching
-def extraer_promociones_ia(
+def extraer_promociones_ia1(
   url_web,
   texto_web,
   api_key_openAI
@@ -92,55 +100,21 @@ def extraer_promociones_ia(
   
   # crear cliente de openAI
   cliente_OpenAI = OpenAI(api_key=api_key_openAI)
-  
-  
-  
-  #________________________________________
-  # primer resumen de todo el texto
-  
-  sistema_resumen_promo = '''
-  Eres asistente especialista en identificar promociones asociadas a descuentos 
-  con todo el detalle (valor del descuento, comercio donde es el descuento, 
-  dias de vigencia, restricciones, etc.)
-  '''
-
-  prompt_resumen_promo = f'''
-  genera un listado de todas las promociones de detectas en el texto: {texto_web}
-  '''
-
-  resumen_promos = cliente_OpenAI.chat.completions.create(
-    model='gpt-4o-mini',
-    messages=[
-      {
-        'role': 'system', 
-        'content': sistema_resumen_promo
-        },
-      {
-        'role': 'user',
-        'content': prompt_resumen_promo
-      }
-    ],
-    max_tokens=16384,
-  )
-
-  resumen_promos2 = resumen_promos.choices[0].message.content
 
 
   # crear clase de formato de salida segun aspectos ingresados
   class Promociones(BaseModel):
     nombre_empresa: str
-    color_empresa: str
     promociones: list[list[str]]
 
-  #________________________________________
-  # Formatear texto
 
   # definir prompt del sistema 
   prompt_s = f'''
-  Eres un experto en leer texto e identificar todas las promociones u ofertas en ese texto. 
-  Dado del link de un sitio web de la empresa se te pide identificar el nombre de la empresa.
-  Para un texto dado, indentifica todas las promociones y para cada una de 
-  ellas debes generar una lista de 8 elementos con los siguientes aspectos:
+  Eres un experto en leer texto de contenido de sitios web de paginas de empresas e 
+  identificar promociones u ofertas. Dado del link de un sitio web de la empresa 
+  se te pide identificar el nombre de la empresa. 
+  Adicional a lo anterior, para cada una de las promociones que se detecten en el texto 
+  debes generar una lista de 8 elementos con los siguientes aspectos:
   - Nombre de la promocion
   - Descripcion de la promocion
   - Rubro de la promocion (si es financiera, en comida, eventos, productos, etc)
@@ -157,29 +131,22 @@ def extraer_promociones_ia(
   u otros alcances de monto maximo)
   '''
 
-
   # definir prompt del usuario  
   prompt_u = f'''
-  El link del sitio web es: {url_web} 
-  y texto de promociones es el siguiente: {resumen_promos2}
+  El texto del contenido del sitio {url_web} es el siguiente: {texto_web}
   '''
 
-
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
-    model= 'gpt-4o-mini',  # 'gpt-4o-2024-08-06',
+    model='gpt-4o-mini',
     messages=[
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
       ],
-    response_format=Promociones,
-    max_tokens=16384
+    response_format=Promociones
     )
 
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
 
-
-  #________________________________________
-  # Pasar a df
 
   columnas_promo = [
     'Nombre Promo',
@@ -240,12 +207,13 @@ def extraccion_promos_ia_web(
     
     print(f'procesando link: {link}')
         
-    texto_link = extraer_texto_url(
-      url=link
+    texto_link = extraer_texto_url_filtrado(
+      url=link,
+      palabras_clave=['descuento','dcto','%','promo','oferta']
       )
     
     if texto_link!='':
-      df = extraer_promociones_ia(
+      df = extraer_promociones_ia1(
         url_web = link,
         texto_web= texto_link,
         api_key_openAI= api_key_openAI
@@ -281,7 +249,7 @@ def extraccion_promos_ia_web(
   
   cliente_OpenAI = OpenAI(api_key=api_key_openAI)
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
-    model='gpt-4o-mini',  # 'gpt-4o-2024-08-06',
+    model='gpt-4o-mini',
     messages=[
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
@@ -301,7 +269,7 @@ def extraccion_promos_ia_web(
       replace('í','i').\
       replace('ó','o').\
       replace('ú','u')
-  )
+    )
   
   
   
