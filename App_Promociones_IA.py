@@ -225,6 +225,7 @@ def extraccion_promos_ia_web(
   
   #.................................
   # estandarizar rubro de promocion
+  
   print('Procesando Rubros')
   
   class Rubro(BaseModel):
@@ -260,6 +261,52 @@ def extraccion_promos_ia_web(
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
   
   df_consolidado['Rubro'] = respuesta_ia2.rubro
+  
+  
+  
+  #.................................
+  # estandarizar dias de vigencia
+  
+  print('Procesando Dias de Vigencia')
+  
+  class DiasV(BaseModel):
+    dias_de_vigencia: list[str]
+    
+ 
+  # definir prompt del sistema 
+  prompt_s = f'''
+  Se te facilitara una lista de dias de vigencia de promociones en texto,
+  debes retornar una lista de la misma cantidad de elementos reemplazando el texto 
+  por los dias explicitamente escritos separados en coma, por ejemplo:
+  - "todos los dias" deberia decir "lunes,martes,miercoles,jueves,viernes,sabado,domingo"
+  - "solo los martes" deberia decir "martes"
+  - "de lunes a jueves" deberia decir "lunes,martes,miercoles,jueves"
+  - "toda la semana" deberia decir "lunes,martes,miercoles,jueves,viernes,sabado,domingo"
+  '''
+
+  # definir prompt del usuario  
+  lista_diasV = list(df_consolidado['Dias de vigencia'])
+  prompt_u = f'''
+  la lista de es la siguiente: {lista_diasV}
+  '''
+  
+  
+  
+  cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+  respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
+    model='gpt-4o-mini',
+    messages=[
+      {'role': 'system', 'content': prompt_s},
+      {'role': 'user', 'content': prompt_u},
+      ],
+    response_format=DiasV
+    )
+
+  respuesta_ia2 = respuesta_ia.choices[0].message.parsed
+  
+  df_consolidado['Dias de vigencia'] = respuesta_ia2.dias_de_vigencia
+  
+    
   df_consolidado['Dias de vigencia']=df_consolidado['Dias de vigencia'].apply(
     lambda x: x.\
       replace('todos los días','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
@@ -268,14 +315,18 @@ def extraccion_promos_ia_web(
       replace('é','e').\
       replace('í','i').\
       replace('ó','o').\
-      replace('ú','u')
-    )
+      replace('ú','u').lower()
+      )
   
   
+  
+  #.................................
+  # retornar entregable
   
   df_consolidado = df_consolidado.reset_index()
         
   return df_consolidado
+
 
 
 
