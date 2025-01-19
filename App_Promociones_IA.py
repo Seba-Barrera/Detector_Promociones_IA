@@ -104,7 +104,7 @@ def extraer_promociones_ia(
   # definir prompt del sistema 
   prompt_s = f'''
   Eres un experto en leer texto de contenido de sitios web de paginas de empresas e 
-  identificar promociones u ofertas. Dado del link de un sitio web de la empresa 
+  identificar todas las promociones u ofertas. Dado del link de un sitio web de la empresa 
   se te pide identificar el nombre de la empresa y el color que mas la representa 
   segun su logo en formato RGB (ejemplo: "rgb(255, 165, 0)").
   Adicional a lo anterior, para cada una de las promociones que se detecten en el texto 
