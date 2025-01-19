@@ -92,6 +92,37 @@ def extraer_promociones_ia(
   
   # crear cliente de openAI
   cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+  
+  
+  
+  #________________________________________
+  # primer resumen de todo el texto
+  
+  sistema_resumen_promo = '''
+  Eres asistente especialista en identificar promociones asociadas a descuentos 
+  con todo el detalle (valor del descuento, comercio donde es el descuento, 
+  dias de vigencia, restricciones, etc.)
+  '''
+
+  prompt_resumen_promo = f'''
+  genera un listado de todas las promociones de detectas en el texto: {texto_web}
+  '''
+
+  resumen_promos = cliente_OpenAI.chat.completions.create(
+    model='gpt-4o-mini',
+    messages=[
+      {
+        'role': 'system', 
+        'content': sistema_resumen_promo
+        },
+      {
+        'role': 'user',
+        'content': prompt_resumen_promo
+      }
+    ]
+  )
+
+  resumen_promos2 = resumen_promos.choices[0].message.content
 
 
   # crear clase de formato de salida segun aspectos ingresados
@@ -100,17 +131,15 @@ def extraer_promociones_ia(
     color_empresa: str
     promociones: list[list[str]]
 
+  #________________________________________
+  # Formatear texto
 
   # definir prompt del sistema 
   prompt_s = f'''
-  Eres un experto en leer texto de contenido de sitios web de paginas de empresas e 
-  identificar todas las promociones u ofertas (puede serte util por ejemplo buscar 
-  palabras como "descuento" o "dcto" o el signo "%" para identificar texto 
-  asociado a promociones). Dado del link de un sitio web de la empresa 
-  se te pide identificar el nombre de la empresa y el color que mas la representa 
-  segun su logo en formato RGB (ejemplo: "rgb(255, 165, 0)").
-  Adicional a lo anterior, para cada una de las promociones que se detecten en el texto 
-  debes generar una lista de 8 elementos con los siguientes aspectos:
+  Eres un experto en leer texto e identificar todas las promociones u ofertas en ese texto. 
+  Dado del link de un sitio web de la empresa se te pide identificar el nombre de la empresa.
+  Para un texto dado, indentifica todas las promociones y para cada una de 
+  ellas debes generar una lista de 8 elementos con los siguientes aspectos:
   - Nombre de la promocion
   - Descripcion de la promocion
   - Rubro de la promocion (si es financiera, en comida, eventos, productos, etc)
@@ -127,13 +156,16 @@ def extraer_promociones_ia(
   u otros alcances de monto maximo)
   '''
 
+
   # definir prompt del usuario  
   prompt_u = f'''
-  El texto del contenido del sitio {url_web} es el siguiente: {texto_web}
+  El link del sitio web es: {url_web} 
+  y texto de promociones es el siguiente: {resumen_promos2}
   '''
 
+
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
-    model = 'gpt-4o-mini',  # 'gpt-4o-2024-08-06',
+    model= 'gpt-4o-mini',  # 'gpt-4o-2024-08-06',
     messages=[
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
@@ -143,6 +175,9 @@ def extraer_promociones_ia(
 
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
 
+
+  #________________________________________
+  # Pasar a df
 
   columnas_promo = [
     'Nombre Promo',
@@ -170,10 +205,9 @@ def extraer_promociones_ia(
 
     df_promociones['Sitio Web']=url_web
     df_promociones['Empresa']=respuesta_ia2.nombre_empresa
-    df_promociones['Color Empresa']=respuesta_ia2.color_empresa
 
     df_promociones = df_promociones[
-      ['Sitio Web','Empresa','Color Empresa']+columnas_promo
+      ['Sitio Web','Empresa']+columnas_promo
       ]
 
   else:
@@ -245,7 +279,7 @@ def extraccion_promos_ia_web(
   
   cliente_OpenAI = OpenAI(api_key=api_key_openAI)
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
-    model='gpt-4o-2024-08-06',
+    model='gpt-4o-mini',  # 'gpt-4o-2024-08-06',
     messages=[
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
