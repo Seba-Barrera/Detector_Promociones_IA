@@ -276,8 +276,8 @@ def extraccion_promos_ia_web(
   # definir prompt del sistema 
   prompt_s = f'''
   Se te facilitara una lista de dias de vigencia de promociones en texto,
-  debes retornar una lista de la misma cantidad de elementos reemplazando el texto 
-  por los dias explicitamente escritos separados en coma, por ejemplo:
+  debes retornar una lista con la misma cantidad de elementos reemplazando el texto 
+  por los dias explicitamente escritos separados por coma, por ejemplo:
   - "todos los dias" deberia decir "lunes,martes,miercoles,jueves,viernes,sabado,domingo"
   - "solo los martes" deberia decir "martes"
   - "de lunes a jueves" deberia decir "lunes,martes,miercoles,jueves"
