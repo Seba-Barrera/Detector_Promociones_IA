@@ -151,11 +151,11 @@ def extraer_promociones_ia1(
   columnas_promo = [
     'Nombre Promo',
     'Descripcion',
-    'Rubro',
+    'Rubro1',
     'Comercio',
     'Tipo',
     'Valor',
-    'Dias de vigencia',
+    'Dias de vigencia1',
     'Restricciones'
   ]
   
@@ -190,65 +190,39 @@ def extraer_promociones_ia1(
 
 
 
-#=======================================================================
-# [B.3] Funcion de armar df consolidado
-#=======================================================================
 
+#=======================================================================
+# [B.3] Funcion de estandarizar Rubro
+#=======================================================================
 
 @st.cache_resource() # https://docs.streamlit.io/library/advanced-features/caching
-def extraccion_promos_ia_web(
-  lista_urls,
+def estandarizar_rubro(
+  lista_original,
   api_key_openAI
   ):
   
-  
-  df_consolidado = pd.DataFrame([])
-  for link in lista_urls:
-    
-    print(f'procesando link: {link}')
-        
-    texto_link = extraer_texto_url_filtrado(
-      url=link,
-      palabras_clave=['descuento','dcto','%','promo','oferta']
-      )
-    
-    if texto_link!='':
-      df = extraer_promociones_ia1(
-        url_web = link,
-        texto_web= texto_link,
-        api_key_openAI= api_key_openAI
-        )
-      
-      if len(df)>0:    
-        df_consolidado = pd.concat([df_consolidado,df])
-      
-  
-  #.................................
-  # estandarizar rubro de promocion
-  
-  print('Procesando Rubros')
+  # crear cliente de openAI
+  cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+
   
   class Rubro(BaseModel):
     rubro: list[str]
-    
- 
+  
+
   # definir prompt del sistema 
   prompt_s = f'''
   Se te facilitara una lista de rubros y debes retornar una lista con la misma 
-  cantidad de elementos, pero con los rubros estandarizados u homologados, es decir,
-  si un elemento dice "comida" y otro "Alimentos", debes homologarlos a una categoria
-  ("Comida" por ejemplo)
+  cantidad de elementos de la lista original, pero con los rubros estandarizados 
+  u homologados, es decir,  si un elemento dice "comida" y otro "Alimentos", 
+  debes homologarlos a una categoria  ("Comida" por ejemplo)
   '''
 
-  # definir prompt del usuario  
-  lista_rubros = list(df_consolidado['Rubro'])
+  # definir prompt del usuario    
   prompt_u = f'''
-  la lista de rubros es la siguiente: {lista_rubros}
+  la lista de rubros es la siguiente: {lista_original}
   '''
   
-  
-  
-  cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
     model='gpt-4o-mini',
     messages=[
@@ -260,24 +234,34 @@ def extraccion_promos_ia_web(
 
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
   
-  df_consolidado['Rubro'] = respuesta_ia2.rubro
+  return respuesta_ia2.rubro
+
+
+
+#=======================================================================
+# [B.4] Funcion de estandarizar dias de vigencia
+#=======================================================================
+
+@st.cache_resource() # https://docs.streamlit.io/library/advanced-features/caching
+def estandarizar_diasv(
+  lista_original,
+  api_key_openAI
+  ):
   
-  
-  
-  #.................................
-  # estandarizar dias de vigencia
-  
-  print('Procesando Dias de Vigencia')
+  # crear cliente de openAI
+  cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+
   
   class DiasV(BaseModel):
     dias_de_vigencia: list[str]
     
- 
+
   # definir prompt del sistema 
   prompt_s = f'''
-  Se te facilitara una lista de dias de vigencia de promociones en texto,
-  debes retornar una lista con la misma cantidad de elementos reemplazando el texto 
-  por los dias explicitamente escritos separados por coma, por ejemplo:
+  Se te facilitara una lista de dias de vigencia de promociones,
+  debes retornar una lista con la misma cantidad de elementos de la lista original, 
+  reemplazando cada texto por los dias explicitamente escritos separados por coma, 
+  por ejemplo:
   - "todos los dias" deberia decir "lunes,martes,miercoles,jueves,viernes,sabado,domingo"
   - "solo los martes" deberia decir "martes"
   - "de lunes a jueves" deberia decir "lunes,martes,miercoles,jueves"
@@ -285,14 +269,10 @@ def extraccion_promos_ia_web(
   '''
 
   # definir prompt del usuario  
-  lista_diasV = list(df_consolidado['Dias de vigencia'])
   prompt_u = f'''
-  la lista de es la siguiente: {lista_diasV}
+  la lista de es la siguiente: {lista_original}
   '''
-  
-  
-  
-  cliente_OpenAI = OpenAI(api_key=api_key_openAI)
+
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
     model='gpt-4o-mini',
     messages=[
@@ -304,29 +284,96 @@ def extraccion_promos_ia_web(
 
   respuesta_ia2 = respuesta_ia.choices[0].message.parsed
   
-  df_consolidado['Dias de vigencia'] = respuesta_ia2.dias_de_vigencia
   
+  return [
+    x.\
+    replace('todos los días','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
+    replace('todos los dias','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
+    replace('á','a').\
+    replace('é','e').\
+    replace('í','i').\
+    replace('ó','o').\
+    replace('ú','u').lower()
+    for x in respuesta_ia2.dias_de_vigencia
+    ]
+
+
+
+#=======================================================================
+# [B.5] Funcion de armar df consolidado
+#=======================================================================
+
+
+@st.cache_resource() # https://docs.streamlit.io/library/advanced-features/caching
+def extraccion_promos_ia_web(
+  lista_urls,
+  api_key_openAI
+  ):
+  
+  dic_textos_url = {}
+  df_consolidado = pd.DataFrame([])
+  for link in lista_urls:
     
-  df_consolidado['Dias de vigencia']=df_consolidado['Dias de vigencia'].apply(
-    lambda x: x.\
-      replace('todos los días','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
-      replace('todos los dias','lunes,martes,miércoles,jueves,viernes,sábado,domingo').\
-      replace('á','a').\
-      replace('é','e').\
-      replace('í','i').\
-      replace('ó','o').\
-      replace('ú','u').lower()
+    print(f'procesando link: {link}')
+        
+    texto_link = extraer_texto_url_filtrado(
+      url=link,
+      palabras_clave=['descuento','dcto','%','promo','oferta']
       )
+    
+    # acumular texto rescatado en urls
+    dic_textos_url[link] = texto_link
+    
+    if texto_link!='':
+      
+      df = extraer_promociones_ia1(
+        url_web = link,
+        texto_web= texto_link,
+        api_key_openAI= api_key_openAI
+        )
+      
+      if len(df)>0:    
+        
+        # aplicar correccion de dias de vigencia
+        df['Dias de vigencia'] = estandarizar_diasv(
+          lista_original=list(df['Dias de vigencia1']),
+          api_key_openAI=api_key_openAI
+          )        
+        
+        df_consolidado = pd.concat([df_consolidado,df])
+      
   
+  #.................................
+  # estandarizar rubro de promocion
   
+  print('Procesando Rubros')
+  
+  df_consolidado['Rubro'] = estandarizar_rubro(
+    lista_original=list(df_consolidado['Rubro1']),
+    api_key_openAI=api_key_openAI
+    )
+    
   
   #.................................
   # retornar entregable
   
-  df_consolidado = df_consolidado.reset_index()
+  df_consolidado = df_consolidado[[
+    'Sitio Web', 
+    'Empresa', 
+    'Nombre Promo', 
+    'Descripcion',
+    'Rubro1', 
+    'Rubro',
+    'Comercio', 
+    'Tipo', 
+    'Valor', 
+    'Dias de vigencia1',
+    'Dias de vigencia',
+    'Restricciones'    
+    ]].reset_index()
+  
         
-  return df_consolidado
-
+  return df_consolidado,dic_textos_url
 
 
 
@@ -378,7 +425,7 @@ if boton_procesar and len(texto_links)>0 and len(usuario_api_key)>0:
   # Crear df de respuestas y almacenarlo en session_state
   if 'df_promociones_links' not in st.session_state:   
           
-    st.session_state.df_promociones_links = extraccion_promos_ia_web(
+    st.session_state.df_promociones_links,_ = extraccion_promos_ia_web(
       lista_urls = [x.strip() for x in texto_links.split(',')],
       api_key_openAI = usuario_api_key
       )
@@ -518,7 +565,7 @@ if 'df_promociones_links' in st.session_state:
   
 
 
-# !streamlit run BenchMark_WebScrap_IA_V3.py
+# !streamlit run App_BenchMark_WebScrap_IA.py
 
 # para obtener TODOS los requerimientos de librerias que se usan
 # !pip freeze > requirements.txt
