@@ -137,7 +137,7 @@ def extraer_promociones_ia1(
   '''
 
   respuesta_ia = cliente_OpenAI.beta.chat.completions.parse(
-    model='gpt-4o-mini',
+    model='gpt-4o', #'gpt-4o-mini',
     messages=[
       {'role': 'system', 'content': prompt_s},
       {'role': 'user', 'content': prompt_u},
